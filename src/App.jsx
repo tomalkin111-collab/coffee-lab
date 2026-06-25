@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { defaultBeans, defaultSetup, defaultShots } from "./data";
 import { getRecommendation } from "./dialIn";
 import { Icon } from "./icons";
@@ -12,9 +12,8 @@ const defaultData = {
   shots: defaultShots,
 };
 
-const roastLevels = ["Light", "Medium-light", "Medium", "Medium-dark", "Dark"];
+const roastLevels = ["Light", "Medium", "Dark", "Unknown"];
 const tastes = ["Sour", "Bitter", "Watery", "Weak", "Balanced"];
-const flows = ["Too fast", "Normal", "Too slow"];
 const optionalSetupDefaults = {
   basketSize: "",
   defaultDose: "",
@@ -42,6 +41,14 @@ function shortDate(value) {
   return new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(
     new Date(value),
   );
+}
+
+function stableId(prefix) {
+  const id =
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${prefix}-${id}`;
 }
 
 function initials(name) {
@@ -132,6 +139,22 @@ function App() {
     navigate("bean");
   }
 
+  function addBean(bean) {
+    const savedBean = {
+      ...bean,
+      id: stableId("bean"),
+      active: data.beans.length === 0,
+      recipe: null,
+    };
+
+    setData((current) => ({
+      ...current,
+      beans: [...current.beans, savedBean],
+    }));
+    setSelectedBeanId(savedBean.id);
+    navigate("bean");
+  }
+
   function setActiveBean(beanId) {
     setData((current) => ({
       ...current,
@@ -146,10 +169,17 @@ function App() {
   function addShot(shot) {
     const savedShot = {
       ...shot,
-      id: `shot-${Date.now()}`,
+      id: stableId("shot"),
       createdAt: new Date().toISOString(),
       beanId: selectedBean.id,
-      recommendation: getRecommendation(shot),
+      recommendation: shot.taste
+        ? getRecommendation(shot)
+        : {
+            action: "Shot saved",
+            detail:
+              "Your recipe is in the log. Add a taste result next time for a more specific recommendation.",
+            direction: "repeat",
+          },
     };
 
     setData((current) => ({
@@ -160,15 +190,12 @@ function App() {
           ? {
               ...bean,
               recipe: {
-                dose: Number(shot.dose),
-                yield: Number(shot.yield),
-                extractionTime: Number(shot.extractionTime),
-                waterTemperature: Number(shot.waterTemperature),
+                ...bean.recipe,
+                dose: shot.dose,
+                yield: shot.yield,
+                extractionTime: shot.extractionTime,
+                waterTemperature: shot.waterTemperature,
                 grindSize: shot.grindSize,
-                grinderTime: Number(shot.grinderTime),
-                basket: shot.basket,
-                portafilter: shot.portafilter,
-                puckScreen: shot.puckScreen,
               },
             }
           : bean,
@@ -206,8 +233,12 @@ function App() {
             setup={data.setup}
             activeBean={activeBean}
             recentShot={recentShot}
+            recentBean={data.beans.find(
+              (bean) => bean.id === recentShot?.beanId,
+            )}
             onSetup={() => navigate("setup")}
             onBeans={() => navigate("beans")}
+            onShots={() => navigate("shots")}
             onBean={() => {
               setSelectedBeanId(activeBean?.id);
               navigate("bean");
@@ -231,10 +262,17 @@ function App() {
           <BeansScreen
             beans={data.beans}
             onBack={() => navigate("home")}
+            onAdd={() => navigate("addBean")}
             onSelect={(id) => {
               setSelectedBeanId(id);
               navigate("bean");
             }}
+          />
+        )}
+        {screen === "addBean" && (
+          <BeanFormScreen
+            onBack={() => navigate("beans")}
+            onSave={addBean}
           />
         )}
         {screen === "bean" && selectedBean && (
@@ -250,15 +288,25 @@ function App() {
         {screen === "editBean" && selectedBean && (
           <BeanFormScreen
             bean={selectedBean}
-            setup={data.setup}
             onBack={() => navigate("bean")}
             onSave={updateBean}
+          />
+        )}
+        {screen === "shots" && (
+          <ShotLogScreen
+            shots={data.shots}
+            beans={data.beans}
+            onBack={() => navigate("home")}
+            onSelectBean={(beanId) => {
+              setSelectedBeanId(beanId);
+              navigate("bean");
+            }}
           />
         )}
         {screen === "shot" && selectedBean && (
           <ShotScreen
             bean={selectedBean}
-            setup={data.setup}
+            workspace={data.workspace}
             onBack={() => navigate("bean")}
             onSave={addShot}
           />
@@ -273,7 +321,7 @@ function App() {
         )}
       </main>
 
-      {!["shot", "recommendation", "editBean"].includes(screen) && (
+      {!["shot", "recommendation", "editBean", "addBean"].includes(screen) && (
         <BottomNav screen={screen} navigate={navigate} />
       )}
     </div>
@@ -286,8 +334,10 @@ function HomeScreen({
   setup,
   activeBean,
   recentShot,
+  recentBean,
   onSetup,
   onBeans,
+  onShots,
   onBean,
   onShot,
 }) {
@@ -365,37 +415,49 @@ function HomeScreen({
           <div className="bean-art">
             <span className="bean-shape bean-shape-one" />
             <span className="bean-shape bean-shape-two" />
-            <span className="bean-origin">{activeBean.origin.split(",")[0]}</span>
+            <span className="bean-origin">
+              {activeBean.origin?.split(",")[0] || "Coffee"}
+            </span>
           </div>
           <div className="bean-feature-copy">
-            <span className="pill">{activeBean.roastLevel} roast</span>
+            <span className="pill">
+              {activeBean.roastLevel || "Unknown"} roast
+            </span>
             <h3>{activeBean.name}</h3>
-            <p>{activeBean.roaster}</p>
-            <p className="flavor-notes">{activeBean.flavorNotes}</p>
-            <div className="recipe-line">
-              <span>
-                <b>{activeBean.recipe.dose}g</b> in
-              </span>
-              <span className="recipe-arrow">→</span>
-              <span>
-                <b>{activeBean.recipe.yield}g</b> out
-              </span>
-              <span>{activeBean.recipe.extractionTime}s</span>
-            </div>
+            <p>{activeBean.roaster || "Roaster not set"}</p>
+            {activeBean.flavorNotes && (
+              <p className="flavor-notes">{activeBean.flavorNotes}</p>
+            )}
+            {activeBean.recipe && (
+              <div className="recipe-line">
+                <span>
+                  <b>{activeBean.recipe.dose}g</b> in
+                </span>
+                <span className="recipe-arrow">→</span>
+                <span>
+                  <b>{activeBean.recipe.yield}g</b> out
+                </span>
+                <span>{activeBean.recipe.extractionTime}s</span>
+              </div>
+            )}
           </div>
         </button>
       )}
 
-      <SectionHeading title="Last shot" />
+      <SectionHeading
+        title="Last shot"
+        action={recentShot ? "View all" : undefined}
+        onAction={onShots}
+      />
       {recentShot && (
         <article className="recent-card">
-          <div className={`score score-${recentShot.rating}`}>
-            <strong>{recentShot.rating}.0</strong>
-            <span>GREAT</span>
+          <div className="score score-4">
+            <strong>{ratio(recentShot.dose, recentShot.yield)}</strong>
+            <span>RATIO</span>
           </div>
           <div className="recent-copy">
             <div className="recent-heading">
-              <h3>{activeBean?.name}</h3>
+              <h3>{recentBean?.name || "Saved bean"}</h3>
               <span>{shortDate(recentShot.createdAt)}</span>
             </div>
             <div className="shot-stats">
@@ -407,12 +469,14 @@ function HomeScreen({
                 <Icon name="clock" size={17} />
                 {recentShot.extractionTime}s
               </span>
-              <span>
-                <Icon name="thermometer" size={17} />
-                {recentShot.waterTemperature}°
-              </span>
+              {recentShot.waterTemperature && (
+                <span>
+                  <Icon name="thermometer" size={17} />
+                  {recentShot.waterTemperature}°
+                </span>
+              )}
             </div>
-            <p>“{recentShot.notes}”</p>
+            {recentShot.notes && <p>“{recentShot.notes}”</p>}
           </div>
         </article>
       )}
@@ -676,15 +740,22 @@ function ProfileSetupForm({
   );
 }
 
-function BeansScreen({ beans, onBack, onSelect }) {
+function BeansScreen({ beans, onBack, onAdd, onSelect }) {
   return (
     <div className="screen">
       <PageHeader
         eyebrow="YOUR COFFEE SHELF"
         title="Beans"
-        description="Two coffees, two different puzzles."
+        description="Keep every coffee and its shots together."
         onBack={onBack}
       />
+      <button className="primary-button add-bean-button" onClick={onAdd}>
+        <span className="button-icon">
+          <Icon name="plus" />
+        </span>
+        <strong>Add bean</strong>
+        <Icon name="arrow" />
+      </button>
       <div className="bean-list">
         {beans.map((bean, index) => (
           <button
@@ -700,23 +771,20 @@ function BeansScreen({ beans, onBack, onSelect }) {
                 {bean.active && <span className="active-dot">ACTIVE</span>}
                 <h3>{bean.name}</h3>
                 <p>
-                  {bean.roaster} · {bean.origin}
+                  {[bean.roaster, bean.origin].filter(Boolean).join(" · ") ||
+                    "Bean details not set"}
                 </p>
               </div>
               <div className="bean-list-bottom">
-                <span>{bean.flavorNotes}</span>
+                <span>
+                  {bean.flavorNotes ||
+                    `${bean.roastLevel || "Unknown"} roast`}
+                </span>
                 <Icon name="arrow" />
               </div>
             </div>
           </button>
         ))}
-      </div>
-      <div className="soft-note">
-        <Icon name="spark" />
-        <p>
-          For this focused MVP, edit the sample beans and recipes to make them
-          yours.
-        </p>
       </div>
     </div>
   );
@@ -742,12 +810,16 @@ function BeanDetailScreen({
       <section className="bean-detail-hero">
         <div className="bean-detail-art">
           <span className="large-bean" />
-          <span className="origin-stamp">{bean.origin.split(",")[0]}</span>
+          <span className="origin-stamp">
+            {bean.origin?.split(",")[0] || "Coffee"}
+          </span>
         </div>
-        <span className="pill">{bean.roastLevel} roast</span>
+        <span className="pill">{bean.roastLevel || "Unknown"} roast</span>
         <h1>{bean.name}</h1>
-        <p className="bean-roaster">{bean.roaster}</p>
-        <p className="bean-flavors">{bean.flavorNotes}</p>
+        {bean.roaster && <p className="bean-roaster">{bean.roaster}</p>}
+        {bean.flavorNotes && (
+          <p className="bean-flavors">{bean.flavorNotes}</p>
+        )}
       </section>
 
       <div className="detail-actions">
@@ -763,45 +835,16 @@ function BeanDetailScreen({
         </button>
       </div>
 
-      <section className="recipe-card">
-        <div className="recipe-card-heading">
-          <div>
-            <p className="eyebrow">CURRENT RECIPE</p>
-            <h2>{ratio(bean.recipe.dose, bean.recipe.yield)}</h2>
-          </div>
-          <span className="recipe-status">DIALED IN</span>
+      <section className="bean-info-card">
+        <p className="eyebrow">BEAN INFO</p>
+        <div className="bean-info-grid">
+          <BeanInfo label="Roaster" value={bean.roaster} />
+          <BeanInfo label="Origin" value={bean.origin} />
+          <BeanInfo label="Process" value={bean.process} />
+          <BeanInfo label="Roast" value={bean.roastLevel} />
         </div>
-        <div className="recipe-grid">
-          <RecipeStat label="Dose" value={`${bean.recipe.dose}g`} />
-          <RecipeStat label="Yield" value={`${bean.recipe.yield}g`} />
-          <RecipeStat label="Time" value={`${bean.recipe.extractionTime}s`} />
-          <RecipeStat
-            label="Temperature"
-            value={`${bean.recipe.waterTemperature}°C`}
-          />
-          <RecipeStat label="Grind" value={bean.recipe.grindSize} />
-          <RecipeStat label="Grinder" value={`${bean.recipe.grinderTime}s`} />
-        </div>
-        <div className="recipe-equipment">
-          {bean.recipe.basket} · {bean.recipe.portafilter} · Puck screen{" "}
-          {bean.recipe.puckScreen ? "on" : "off"}
-        </div>
+        {bean.notes && <p className="bean-notes">{bean.notes}</p>}
       </section>
-
-      <div className="bean-facts">
-        <div>
-          <span>ROASTED</span>
-          <strong>{shortDate(bean.roastDate)}</strong>
-        </div>
-        <div>
-          <span>BEST AS</span>
-          <strong>{bean.drinkingStyle}</strong>
-        </div>
-        <div>
-          <span>SHOTS</span>
-          <strong>{shots.length}</strong>
-        </div>
-      </div>
 
       <button className="primary-button sticky-action" onClick={onShot}>
         <span className="button-icon">
@@ -810,40 +853,40 @@ function BeanDetailScreen({
         <strong>Add a shot</strong>
         <Icon name="arrow" />
       </button>
+
+      <SectionHeading title="Shot log" />
+      <ShotList shots={shots} emptyMessage="No shots logged for this bean yet." />
     </div>
   );
 }
 
-function BeanFormScreen({ bean, setup, onBack, onSave }) {
-  const [form, setForm] = useState(bean);
-
-  function updateRecipe(key, value) {
-    setForm({ ...form, recipe: { ...form.recipe, [key]: value } });
-  }
+function BeanFormScreen({ bean, onBack, onSave }) {
+  const [form, setForm] = useState({
+    name: "",
+    roaster: "",
+    roastLevel: "Unknown",
+    origin: "",
+    process: "",
+    flavorNotes: "",
+    notes: "",
+    ...bean,
+  });
+  const roastOptions = roastLevels.includes(form.roastLevel)
+    ? roastLevels
+    : [form.roastLevel, ...roastLevels];
 
   return (
     <FormScreen
       eyebrow="BEAN PROFILE"
-      title="Edit coffee"
-      description="Keep the character of the coffee and its working recipe together."
+      title={bean ? "Edit bean" : "Add bean"}
+      description="A name is enough to start. Add anything else you know."
       onBack={onBack}
       onSubmit={(event) => {
         event.preventDefault();
-        onSave({
-          ...form,
-          recipe: {
-            ...form.recipe,
-            dose: Number(form.recipe.dose),
-            yield: Number(form.recipe.yield),
-            extractionTime: Number(form.recipe.extractionTime),
-            waterTemperature: Number(form.recipe.waterTemperature),
-            grinderTime: Number(form.recipe.grinderTime),
-          },
-        });
+        onSave(form);
       }}
-      submitLabel="Save bean"
+      submitLabel={bean ? "Save bean" : "Add bean"}
     >
-      <p className="form-section-label">Coffee</p>
       <div className="form-card">
         <Field
           label="Bean name"
@@ -853,128 +896,59 @@ function BeanFormScreen({ bean, setup, onBack, onSave }) {
         <Field
           label="Roaster"
           value={form.roaster}
+          required={false}
           onChange={(roaster) => setForm({ ...form, roaster })}
-        />
-        <Field
-          label="Origin"
-          value={form.origin}
-          onChange={(origin) => setForm({ ...form, origin })}
         />
         <SelectField
           label="Roast level"
           value={form.roastLevel}
-          options={roastLevels}
+          options={roastOptions}
           onChange={(roastLevel) => setForm({ ...form, roastLevel })}
         />
         <Field
-          label="Roast date"
-          type="date"
-          value={form.roastDate}
-          onChange={(roastDate) => setForm({ ...form, roastDate })}
+          label="Origin"
+          value={form.origin}
+          required={false}
+          onChange={(origin) => setForm({ ...form, origin })}
         />
         <Field
-          label="Flavor notes"
+          label="Process"
+          value={form.process}
+          required={false}
+          onChange={(process) => setForm({ ...form, process })}
+        />
+        <Field
+          label="Tasting notes"
           value={form.flavorNotes}
+          required={false}
           onChange={(flavorNotes) => setForm({ ...form, flavorNotes })}
         />
-        <SelectField
-          label="Recommended style"
-          value={form.drinkingStyle}
-          options={["Espresso", "Americano", "Flat white", "Cappuccino"]}
-          onChange={(drinkingStyle) => setForm({ ...form, drinkingStyle })}
-        />
       </div>
-
-      <p className="form-section-label">Current recipe</p>
-      <div className="form-card">
-        <div className="field-row">
-          <Field
-            label="Dose"
-            value={form.recipe.dose}
-            type="number"
-            suffix="g"
-            onChange={(value) => updateRecipe("dose", value)}
-          />
-          <Field
-            label="Yield"
-            value={form.recipe.yield}
-            type="number"
-            suffix="g"
-            onChange={(value) => updateRecipe("yield", value)}
-          />
-        </div>
-        <div className="inline-ratio">
-          Brew ratio{" "}
-          <strong>{ratio(form.recipe.dose, form.recipe.yield)}</strong>
-        </div>
-        <div className="field-row">
-          <Field
-            label="Time"
-            value={form.recipe.extractionTime}
-            type="number"
-            suffix="sec"
-            onChange={(value) => updateRecipe("extractionTime", value)}
-          />
-          <Field
-            label="Temperature"
-            value={form.recipe.waterTemperature}
-            type="number"
-            suffix="°C"
-            onChange={(value) => updateRecipe("waterTemperature", value)}
-          />
-        </div>
-        <div className="field-row">
-          <Field
-            label="Grind size"
-            value={form.recipe.grindSize}
-            onChange={(value) => updateRecipe("grindSize", value)}
-          />
-          <Field
-            label="Grinder time"
-            value={form.recipe.grinderTime}
-            type="number"
-            step="0.1"
-            suffix="sec"
-            onChange={(value) => updateRecipe("grinderTime", value)}
-          />
-        </div>
-        <Field
-          label="Basket"
-          value={form.recipe.basket || setup.basket}
-          onChange={(value) => updateRecipe("basket", value)}
+      <label className="textarea-field bean-notes-field">
+        <span>Notes</span>
+        <textarea
+          placeholder="Anything useful to remember"
+          value={form.notes}
+          onChange={(event) => setForm({ ...form, notes: event.target.value })}
         />
-        <SelectField
-          label="Portafilter"
-          value={form.recipe.portafilter || setup.portafilter}
-          options={["Bottomless", "Double spout", "Single spout"]}
-          onChange={(value) => updateRecipe("portafilter", value)}
-        />
-        <ToggleField
-          label="Use a puck screen"
-          checked={form.recipe.puckScreen}
-          onChange={(value) => updateRecipe("puckScreen", value)}
-        />
-      </div>
+      </label>
     </FormScreen>
   );
 }
 
-function ShotScreen({ bean, setup, onBack, onSave }) {
-  const base = bean.recipe;
+function ShotScreen({ bean, workspace, onBack, onSave }) {
+  const base = bean.recipe || {};
+  const setupDetails = workspace.setupDetails || {};
   const [form, setForm] = useState({
-    dose: base.dose,
-    yield: base.yield,
-    extractionTime: base.extractionTime,
-    waterTemperature: base.waterTemperature || setup.waterTemperature,
-    grindSize: base.grindSize,
-    grinderTime: base.grinderTime,
-    basket: base.basket || setup.basket,
-    portafilter: base.portafilter || setup.portafilter,
-    puckScreen: base.puckScreen ?? setup.puckScreen,
-    taste: "Balanced",
+    dose: base.dose || setupDetails.defaultDose || "",
+    yield: base.yield || "",
+    extractionTime: base.extractionTime || "",
+    waterTemperature:
+      base.waterTemperature || setupDetails.defaultWaterTemperature || "",
+    grindSize: base.grindSize || "",
+    taste: "",
     flow: "Normal",
     notes: "",
-    rating: 4,
   });
 
   return (
@@ -982,108 +956,88 @@ function ShotScreen({ bean, setup, onBack, onSave }) {
       <PageHeader
         eyebrow="SHOT IN PROGRESS"
         title={bean.name}
-        description={`${bean.roaster} · Current ratio ${ratio(form.dose, form.yield)}`}
+        description={`Log the essentials now. Add tasting details if useful.`}
         onBack={onBack}
       />
 
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          onSave(form);
+          onSave({
+            ...form,
+            dose: Number(form.dose),
+            yield: Number(form.yield),
+            extractionTime: Number(form.extractionTime),
+            waterTemperature: form.waterTemperature
+              ? Number(form.waterTemperature)
+              : "",
+          });
         }}
       >
-        <div className="shot-measurements">
-          <NumberDial
-            label="Dose in"
-            value={form.dose}
-            unit="g"
-            step={0.1}
-            onChange={(dose) => setForm({ ...form, dose })}
-          />
-          <div className="ratio-orbit">
-            <span>RATIO</span>
-            <strong>{ratio(form.dose, form.yield)}</strong>
-          </div>
-          <NumberDial
-            label="Yield out"
-            value={form.yield}
-            unit="g"
-            step={0.5}
-            onChange={(yieldValue) =>
-              setForm({ ...form, yield: yieldValue })
-            }
-          />
-        </div>
-
         <div className="form-card compact-card">
           <div className="field-row">
             <Field
-              label="Extraction time"
+              label="Dose in"
               type="number"
-              value={form.extractionTime}
-              suffix="sec"
-              onChange={(extractionTime) =>
-                setForm({ ...form, extractionTime })
+              step="0.1"
+              min="1"
+              value={form.dose}
+              suffix="g"
+              onChange={(dose) => setForm({ ...form, dose })}
+            />
+            <Field
+              label="Yield out"
+              type="number"
+              step="0.1"
+              min="1"
+              value={form.yield}
+              suffix="g"
+              onChange={(yieldValue) =>
+                setForm({ ...form, yield: yieldValue })
               }
+            />
+          </div>
+          <div className="inline-ratio">
+            Brew ratio <strong>{ratio(form.dose, form.yield)}</strong>
+          </div>
+          <Field
+            label="Extraction time"
+            type="number"
+            min="1"
+            value={form.extractionTime}
+            suffix="sec"
+            onChange={(extractionTime) =>
+              setForm({ ...form, extractionTime })
+            }
+          />
+          <div className="field-row">
+            <Field
+              label="Grind setting"
+              value={form.grindSize}
+              required={false}
+              onChange={(grindSize) => setForm({ ...form, grindSize })}
             />
             <Field
               label="Temperature"
               type="number"
+              min="70"
+              max="105"
               value={form.waterTemperature}
               suffix="°C"
+              required={false}
               onChange={(waterTemperature) =>
                 setForm({ ...form, waterTemperature })
               }
             />
           </div>
-          <div className="field-row">
-            <Field
-              label="Grind size"
-              value={form.grindSize}
-              onChange={(grindSize) => setForm({ ...form, grindSize })}
-            />
-            <Field
-              label="Grinder time"
-              type="number"
-              step="0.1"
-              value={form.grinderTime}
-              suffix="sec"
-              onChange={(grinderTime) =>
-                setForm({ ...form, grinderTime })
-              }
-            />
-          </div>
         </div>
 
         <TasteSelector
-          label="How did it taste?"
+          label="Taste result (optional)"
           options={tastes}
           value={form.taste}
           onChange={(taste) => setForm({ ...form, taste })}
         />
-        <TasteSelector
-          label="How was the flow?"
-          options={flows}
-          value={form.flow}
-          onChange={(flow) => setForm({ ...form, flow })}
-        />
-
-        <div className="rating-block">
-          <label>Your rating</label>
-          <div className="rating-row">
-            {[1, 2, 3, 4, 5].map((rating) => (
-              <button
-                type="button"
-                key={rating}
-                className={rating <= form.rating ? "rating-on" : ""}
-                onClick={() => setForm({ ...form, rating })}
-                aria-label={`${rating} out of 5`}
-              >
-                {rating}
-              </button>
-            ))}
-          </div>
-        </div>
 
         <label className="textarea-field">
           <span>Notes</span>
@@ -1094,30 +1048,6 @@ function ShotScreen({ bean, setup, onBack, onSave }) {
           />
         </label>
 
-        <details className="equipment-details">
-          <summary>Equipment used</summary>
-          <div className="form-card compact-card">
-            <Field
-              label="Basket"
-              value={form.basket}
-              onChange={(basket) => setForm({ ...form, basket })}
-            />
-            <SelectField
-              label="Portafilter"
-              value={form.portafilter}
-              options={["Bottomless", "Double spout", "Single spout"]}
-              onChange={(portafilter) =>
-                setForm({ ...form, portafilter })
-              }
-            />
-            <ToggleField
-              label="Puck screen"
-              checked={form.puckScreen}
-              onChange={(puckScreen) => setForm({ ...form, puckScreen })}
-            />
-          </div>
-        </details>
-
         <button className="primary-button form-submit" type="submit">
           <span className="button-icon">
             <Icon name="check" />
@@ -1126,6 +1056,90 @@ function ShotScreen({ bean, setup, onBack, onSave }) {
           <Icon name="arrow" />
         </button>
       </form>
+    </div>
+  );
+}
+
+function ShotLogScreen({ shots, beans, onBack, onSelectBean }) {
+  return (
+    <div className="screen">
+      <PageHeader
+        eyebrow="BREW HISTORY"
+        title="Shot log"
+        description="Every saved shot, with the bean you used."
+        onBack={onBack}
+      />
+      <ShotList
+        shots={shots}
+        getBean={(beanId) => beans.find((bean) => bean.id === beanId)}
+        onSelectBean={onSelectBean}
+        emptyMessage="No shots logged yet."
+      />
+    </div>
+  );
+}
+
+function ShotList({
+  shots,
+  getBean,
+  onSelectBean,
+  emptyMessage,
+}) {
+  if (!shots.length) {
+    return <p className="empty-state">{emptyMessage}</p>;
+  }
+
+  return (
+    <div className="shot-log">
+      {shots.map((shot) => {
+        const bean = getBean?.(shot.beanId);
+        const content = (
+          <>
+            <div className="shot-log-top">
+              <div>
+                {bean && <span>{bean.name}</span>}
+                <strong>
+                  {shot.dose}g → {shot.yield}g
+                </strong>
+              </div>
+              <time>{shortDate(shot.createdAt)}</time>
+            </div>
+            <div className="shot-log-meta">
+              <span>{shot.extractionTime}s</span>
+              <span>{ratio(shot.dose, shot.yield)}</span>
+              {shot.grindSize && <span>Grind {shot.grindSize}</span>}
+              {shot.waterTemperature && (
+                <span>{shot.waterTemperature}°C</span>
+              )}
+              {shot.taste && <span>{shot.taste}</span>}
+            </div>
+            {shot.notes && <p>{shot.notes}</p>}
+          </>
+        );
+
+        return onSelectBean && bean ? (
+          <button
+            className="shot-log-card"
+            key={shot.id}
+            onClick={() => onSelectBean(bean.id)}
+          >
+            {content}
+          </button>
+        ) : (
+          <article className="shot-log-card" key={shot.id}>
+            {content}
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function BeanInfo({ label, value }) {
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>{value || "Not set"}</strong>
     </div>
   );
 }
@@ -1157,14 +1171,16 @@ function RecommendationScreen({ shot, bean, onDone, onAgain }) {
         </div>
         <div className="result-meta">
           <span>{shot.extractionTime} seconds</span>
-          <span>{shot.waterTemperature}°C</span>
-          <span>Grind {shot.grindSize}</span>
+          {shot.waterTemperature && <span>{shot.waterTemperature}°C</span>}
+          {shot.grindSize && <span>Grind {shot.grindSize}</span>}
         </div>
-        <div className="taste-result">
-          <span>{shot.taste}</span>
-          <span>{shot.flow}</span>
-          <span>{shot.rating}/5</span>
-        </div>
+        {(shot.taste || shot.flow || shot.rating) && (
+          <div className="taste-result">
+            {shot.taste && <span>{shot.taste}</span>}
+            {shot.flow && <span>{shot.flow}</span>}
+            {shot.rating && <span>{shot.rating}/5</span>}
+          </div>
+        )}
       </section>
 
       <div className="why-card">
@@ -1342,42 +1358,6 @@ function ToggleField({ label, checked, onChange }) {
         <b />
       </i>
     </label>
-  );
-}
-
-function RecipeStat({ label, value }) {
-  return (
-    <div className="recipe-stat">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function NumberDial({ label, value, unit, step, onChange }) {
-  const number = Number(value);
-  return (
-    <div className="number-dial">
-      <span>{label}</span>
-      <div>
-        <button
-          type="button"
-          onClick={() => onChange(Number((number - step).toFixed(1)))}
-        >
-          −
-        </button>
-        <strong>
-          {value}
-          <i>{unit}</i>
-        </strong>
-        <button
-          type="button"
-          onClick={() => onChange(Number((number + step).toFixed(1)))}
-        >
-          +
-        </button>
-      </div>
-    </div>
   );
 }
 
