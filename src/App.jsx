@@ -12,7 +12,14 @@ const defaultData = {
   shots: defaultShots,
 };
 
-const roastLevels = ["Light", "Medium", "Dark", "Unknown"];
+const beanRoastLevels = [
+  "Light",
+  "Light-Medium",
+  "Medium",
+  "Medium-Dark",
+  "Dark",
+];
+const roastLevels = [...beanRoastLevels, "Unknown"];
 const tastes = ["Sour", "Bitter", "Watery", "Weak", "Balanced"];
 const optionalSetupDefaults = {
   basketSize: "",
@@ -84,7 +91,7 @@ function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function updateProfileSetup(form) {
+  function saveOnboarding(form) {
     const fullName = form.fullName.trim();
     const workspaceName = form.workspaceName.trim() || "Home setup";
     const grinder = form.hasBuiltInGrinder
@@ -124,6 +131,69 @@ function App() {
         ...current.setup,
         machine: form.machine.trim(),
         grinder,
+        hasBuiltInGrinder: form.hasBuiltInGrinder,
+      },
+    }));
+    navigate("home");
+  }
+
+  function updateProfile(form) {
+    setData((current) => ({
+      ...current,
+      profile: {
+        ...current.profile,
+        fullName: form.fullName.trim(),
+        tasteHabits: {
+          ...current.profile?.tasteHabits,
+          mainDrinkStyle: form.mainDrinkStyle,
+          experienceLevel: form.experienceLevel,
+          preferredRoast: form.preferredRoast,
+          preferredTasteDirection: form.preferredTasteDirection,
+        },
+      },
+    }));
+    navigate("home");
+  }
+
+  function updateMachine(form) {
+    setData((current) => ({
+      ...current,
+      setup: {
+        ...current.setup,
+        machine: form.machine.trim(),
+        grinder: form.hasBuiltInGrinder
+          ? "Built-in grinder"
+          : form.grinder.trim(),
+        hasBuiltInGrinder: form.hasBuiltInGrinder,
+      },
+    }));
+    navigate("home");
+  }
+
+  function updateSetup(form) {
+    setData((current) => ({
+      ...current,
+      workspace: {
+        ...current.workspace,
+        name: form.workspaceName.trim() || "Home setup",
+        setupDetails: {
+          ...current.workspace?.setupDetails,
+          basketSize: form.basketSize,
+          defaultDose: form.defaultDose,
+          defaultWaterTemperature: form.defaultWaterTemperature,
+          portafilterType: form.portafilterType,
+          puckScreen: form.puckScreen,
+          wdt: form.wdt,
+          distributionTool: form.distributionTool,
+          tamperType: form.tamperType,
+        },
+      },
+      setup: {
+        ...current.setup,
+        machine: form.machine.trim(),
+        grinder: form.hasBuiltInGrinder
+          ? "Built-in grinder"
+          : form.grinder.trim(),
         hasBuiltInGrinder: form.hasBuiltInGrinder,
       },
     }));
@@ -214,7 +284,7 @@ function App() {
         <div className="ambient ambient-one" />
         <div className="ambient ambient-two" />
         <main className="app-content">
-          <OnboardingScreen onSave={updateProfileSetup} />
+          <OnboardingScreen onSave={saveOnboarding} />
         </main>
       </div>
     );
@@ -236,6 +306,8 @@ function App() {
             recentBean={data.beans.find(
               (bean) => bean.id === recentShot?.beanId,
             )}
+            onProfile={() => navigate("profile")}
+            onMachine={() => navigate("machine")}
             onSetup={() => navigate("setup")}
             onBeans={() => navigate("beans")}
             onShots={() => navigate("shots")}
@@ -249,13 +321,26 @@ function App() {
             }}
           />
         )}
+        {screen === "profile" && (
+          <ProfileScreen
+            profile={data.profile}
+            onBack={() => navigate("home")}
+            onSave={updateProfile}
+          />
+        )}
+        {screen === "machine" && (
+          <MachineScreen
+            setup={data.setup}
+            onBack={() => navigate("home")}
+            onSave={updateMachine}
+          />
+        )}
         {screen === "setup" && (
           <SetupScreen
-            profile={data.profile}
             workspace={data.workspace}
             setup={data.setup}
             onBack={() => navigate("home")}
-            onSave={updateProfileSetup}
+            onSave={updateSetup}
           />
         )}
         {screen === "beans" && (
@@ -335,6 +420,8 @@ function HomeScreen({
   activeBean,
   recentShot,
   recentBean,
+  onProfile,
+  onMachine,
   onSetup,
   onBeans,
   onShots,
@@ -350,8 +437,13 @@ function HomeScreen({
           </span>
           <span>COFFEE LAB</span>
         </div>
-        <button className="avatar" onClick={onSetup} aria-label="Open setup">
-          {initials(profile.fullName)}
+        <button
+          className="profile-trigger"
+          onClick={onProfile}
+          aria-label="Open profile"
+        >
+          <span>{profile.fullName}</span>
+          <span className="avatar">{initials(profile.fullName)}</span>
         </button>
       </header>
 
@@ -377,7 +469,7 @@ function HomeScreen({
       </button>
 
       <SectionHeading title="Your setup" action="Edit" onAction={onSetup} />
-      <button className="setup-card" onClick={onSetup}>
+      <button className="setup-card" onClick={onMachine}>
         <div className="machine-illustration">
           <div className="machine-top" />
           <div className="machine-face">
@@ -386,19 +478,27 @@ function HomeScreen({
           </div>
           <div className="machine-group" />
           <div className="machine-cup" />
+          {!setup.hasBuiltInGrinder && !setup.grinder?.trim() && (
+            <span className="add-grinder-badge">
+              <Icon name="plus" size={14} />
+              Add grinder
+            </span>
+          )}
         </div>
         <div className="setup-copy">
           <span className="status-label">
             <i /> READY
           </span>
           <h3>{setup.machine}</h3>
-          <p>{setup.grinder}</p>
+          <p>{setup.grinder || "No grinder configured"}</p>
           <div className="setup-meta">
             <span>{workspace.name}</span>
             <span>
               {setup.hasBuiltInGrinder
                 ? "Built-in grinder"
-                : "Separate grinder"}
+                : setup.grinder
+                  ? "Separate grinder"
+                  : "Add a grinder"}
             </span>
           </div>
         </div>
@@ -505,30 +605,77 @@ function OnboardingScreen({ onSave }) {
   );
 }
 
-function SetupScreen({ profile, workspace, setup, onBack, onSave }) {
+function ProfileScreen({ profile, onBack, onSave }) {
   return (
     <div className="screen form-screen">
       <PageHeader
-        eyebrow="YOUR WORKBENCH"
-        title="Profile & setup"
-        description="Keep your name and everyday espresso setup up to date."
+        eyebrow="YOUR PROFILE"
+        title="Personal profile"
+        description="Keep your name and coffee preferences up to date."
         onBack={onBack}
       />
       <ProfileSetupForm
         initialValues={{
           fullName: profile.fullName,
+          ...tasteHabitDefaults,
+          ...profile.tasteHabits,
+        }}
+        onSave={onSave}
+        sections={["profile", "taste"]}
+        submitLabel="Save profile"
+      />
+    </div>
+  );
+}
+
+function MachineScreen({ setup, onBack, onSave }) {
+  return (
+    <div className="screen form-screen">
+      <PageHeader
+        eyebrow="ESPRESSO MACHINE"
+        title="Your machine"
+        description="Change the machine type or its grinder configuration."
+        onBack={onBack}
+      />
+      <ProfileSetupForm
+        initialValues={{
+          machine: setup.machine,
+          hasBuiltInGrinder: setup.hasBuiltInGrinder,
+          grinder: setup.hasBuiltInGrinder ? "" : setup.grinder,
+        }}
+        allowMissingGrinder
+        machineLabel="Machine name or type"
+        onSave={onSave}
+        sections={["machine"]}
+        submitLabel="Save machine"
+      />
+    </div>
+  );
+}
+
+function SetupScreen({ workspace, setup, onBack, onSave }) {
+  return (
+    <div className="screen form-screen">
+      <PageHeader
+        eyebrow="YOUR WORKBENCH"
+        title="Setup & equipment"
+        description="Manage the machine, grinder, and tools in your current coffee setup."
+        onBack={onBack}
+      />
+      <ProfileSetupForm
+        initialValues={{
           machine: setup.machine,
           workspaceName: workspace.name,
           hasBuiltInGrinder: setup.hasBuiltInGrinder,
           grinder: setup.hasBuiltInGrinder ? "" : setup.grinder,
           ...optionalSetupDefaults,
           ...workspace.setupDetails,
-          ...tasteHabitDefaults,
-          ...profile.tasteHabits,
         }}
+        allowMissingGrinder
+        machineLabel="Machine name or type"
         onSave={onSave}
-        submitLabel="Save changes"
-        showOptional
+        sections={["workspace", "machine", "equipment"]}
+        submitLabel="Save setup"
       />
     </div>
   );
@@ -544,42 +691,67 @@ function ProfileSetupForm({
     ...optionalSetupDefaults,
     ...tasteHabitDefaults,
   },
+  allowMissingGrinder = false,
+  machineLabel = "Espresso machine",
   onSave,
+  sections = ["profile", "machine", "workspace"],
   submitLabel,
-  showOptional = false,
 }) {
   const [form, setForm] = useState(initialValues);
   const basicFields = (
     <div className="form-card">
-      <Field
-        label="Full name"
-        value={form.fullName}
-        onChange={(fullName) => setForm({ ...form, fullName })}
-      />
-      <Field
-        label="Espresso machine"
-        value={form.machine}
-        onChange={(machine) => setForm({ ...form, machine })}
-      />
-      <Field
-        label="Workspace name"
-        value={form.workspaceName}
-        placeholder="Home setup"
-        required={false}
-        onChange={(workspaceName) => setForm({ ...form, workspaceName })}
-      />
-      <ToggleField
-        label="My machine has a built-in grinder"
-        checked={form.hasBuiltInGrinder}
-        onChange={(hasBuiltInGrinder) =>
-          setForm({ ...form, hasBuiltInGrinder })
-        }
-      />
-      {!form.hasBuiltInGrinder && (
+      {sections.includes("profile") && (
         <Field
-          label="Grinder name"
-          value={form.grinder}
-          onChange={(grinder) => setForm({ ...form, grinder })}
+          label="Full name"
+          value={form.fullName}
+          onChange={(fullName) => setForm({ ...form, fullName })}
+        />
+      )}
+      {sections.includes("machine") && (
+        <>
+          <Field
+            label={machineLabel}
+            value={form.machine}
+            onChange={(machine) => setForm({ ...form, machine })}
+          />
+          {sections.includes("workspace") && (
+            <Field
+              label="Workspace name"
+              value={form.workspaceName}
+              placeholder="Home setup"
+              required={false}
+              onChange={(workspaceName) =>
+                setForm({ ...form, workspaceName })
+              }
+            />
+          )}
+          <ToggleField
+            label="My machine has a built-in grinder"
+            checked={form.hasBuiltInGrinder}
+            onChange={(hasBuiltInGrinder) =>
+              setForm({ ...form, hasBuiltInGrinder })
+            }
+          />
+          {!form.hasBuiltInGrinder && (
+            <Field
+              label="Grinder name"
+              value={form.grinder}
+              placeholder={
+                allowMissingGrinder ? "Add a separate grinder" : undefined
+              }
+              required={!allowMissingGrinder}
+              onChange={(grinder) => setForm({ ...form, grinder })}
+            />
+          )}
+        </>
+      )}
+      {sections.includes("workspace") && !sections.includes("machine") && (
+        <Field
+          label="Workspace name"
+          value={form.workspaceName}
+          placeholder="Home setup"
+          required={false}
+          onChange={(workspaceName) => setForm({ ...form, workspaceName })}
         />
       )}
     </div>
@@ -592,12 +764,15 @@ function ProfileSetupForm({
         onSave(form);
       }}
     >
-      {basicFields}
-      {showOptional && (
+      {(sections.includes("profile") ||
+        sections.includes("workspace") ||
+        sections.includes("machine")) &&
+        basicFields}
+      {sections.includes("equipment") && (
         <>
           <FormSectionHeading
-            title="Optional setup details"
-            subtitle="Add more equipment details for better recommendations."
+            title="Equipment details"
+            subtitle="Optional details can make shot logging quicker and recommendations more relevant."
           />
           <div className="form-card">
             <Field
@@ -677,10 +852,13 @@ function ProfileSetupForm({
               onChange={(tamperType) => setForm({ ...form, tamperType })}
             />
           </div>
-
+        </>
+      )}
+      {sections.includes("taste") && (
+        <>
           <FormSectionHeading
             title="Taste & habits"
-            subtitle="Help Coffee Lab understand how you like to drink coffee."
+            subtitle="These preferences help Coffee Lab understand how you like to drink coffee."
           />
           <div className="form-card">
             <SelectField
@@ -704,7 +882,7 @@ function ProfileSetupForm({
             <SelectField
               label="Preferred roast"
               value={form.preferredRoast}
-              options={["Light", "Medium", "Dark", "No preference"]}
+              options={[...beanRoastLevels, "No preference"]}
               optional
               onChange={(preferredRoast) =>
                 setForm({ ...form, preferredRoast })
@@ -729,13 +907,7 @@ function ProfileSetupForm({
           </div>
         </>
       )}
-      <button className="primary-button form-submit" type="submit">
-        <span className="button-icon">
-          <Icon name="check" />
-        </span>
-        <strong>{submitLabel}</strong>
-        <Icon name="arrow" />
-      </button>
+      <FormSubmit label={submitLabel} />
     </form>
   );
 }
@@ -1227,15 +1399,21 @@ function FormScreen({
       />
       <form onSubmit={onSubmit}>
         {children}
-        <button className="primary-button form-submit" type="submit">
-          <span className="button-icon">
-            <Icon name="check" />
-          </span>
-          <strong>{submitLabel}</strong>
-          <Icon name="arrow" />
-        </button>
+        <FormSubmit label={submitLabel} />
       </form>
     </div>
+  );
+}
+
+function FormSubmit({ label }) {
+  return (
+    <button className="primary-button form-submit" type="submit">
+      <span className="button-icon">
+        <Icon name="check" />
+      </span>
+      <strong>{label}</strong>
+      <Icon name="arrow" />
+    </button>
   );
 }
 
@@ -1263,7 +1441,9 @@ function BottomNav({ screen, navigate }) {
     <nav className="bottom-nav" aria-label="Main navigation">
       {items.map(([target, label, icon]) => {
         const active =
-          screen === target || (screen === "bean" && target === "beans");
+          screen === target ||
+          (screen === "bean" && target === "beans") ||
+          (screen === "machine" && target === "setup");
         return (
           <button
             key={target}

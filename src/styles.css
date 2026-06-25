@@ -156,9 +156,31 @@ button {
   transform: rotate(215deg);
 }
 
+.profile-trigger {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.profile-trigger > span:first-child {
+  max-width: 118px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .avatar {
+  display: grid;
   width: 38px;
   height: 38px;
+  place-items: center;
   border: 0;
   border-radius: 50%;
   color: #f4ede3;
@@ -363,6 +385,24 @@ button {
   border-radius: 3px 3px 10px 10px;
   background: #eee7dc;
   box-shadow: 0 4px 0 #63564e;
+}
+
+.add-grinder-badge {
+  position: absolute;
+  display: flex;
+  z-index: 2;
+  top: 6px;
+  right: 6px;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border-radius: 99px;
+  color: #fffaf2;
+  background: var(--terracotta);
+  box-shadow: 0 4px 10px rgba(82, 43, 31, 0.2);
+  font-size: 7px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .setup-copy {
