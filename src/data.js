@@ -1,6 +1,7 @@
 export const defaultSetup = {
-  machine: "Lelit Bianca V3",
-  grinder: "Niche Zero",
+  machine: "",
+  grinder: "",
+  hasBuiltInGrinder: false,
   basket: "18 g precision basket",
   portafilter: "Bottomless",
   puckScreen: true,

@@ -5,6 +5,8 @@ import { Icon } from "./icons";
 import { loadData, saveData } from "./storage";
 
 const defaultData = {
+  profile: null,
+  workspace: null,
   setup: defaultSetup,
   beans: defaultBeans,
   shots: defaultShots,
@@ -24,6 +26,16 @@ function shortDate(value) {
   return new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(
     new Date(value),
   );
+}
+
+function initials(name) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 }
 
 function App() {
@@ -49,8 +61,27 @@ function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function updateSetup(setup) {
-    setData((current) => ({ ...current, setup }));
+  function updateProfileSetup(form) {
+    const fullName = form.fullName.trim();
+    const workspaceName = form.workspaceName.trim() || "Home setup";
+    const grinder = form.hasBuiltInGrinder
+      ? "Built-in grinder"
+      : form.grinder.trim();
+
+    setData((current) => ({
+      ...current,
+      profile: { fullName },
+      workspace: {
+        id: current.workspace?.id || "workspace-home",
+        name: workspaceName,
+      },
+      setup: {
+        ...current.setup,
+        machine: form.machine.trim(),
+        grinder,
+        hasBuiltInGrinder: form.hasBuiltInGrinder,
+      },
+    }));
     navigate("home");
   }
 
@@ -112,6 +143,18 @@ function App() {
   const lastShot =
     data.shots.find((shot) => shot.id === lastShotId) || recentShot;
 
+  if (!data.profile || !data.workspace) {
+    return (
+      <div className="app-shell">
+        <div className="ambient ambient-one" />
+        <div className="ambient ambient-two" />
+        <main className="app-content">
+          <OnboardingScreen onSave={updateProfileSetup} />
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
       <div className="ambient ambient-one" />
@@ -120,6 +163,8 @@ function App() {
       <main className="app-content">
         {screen === "home" && (
           <HomeScreen
+            profile={data.profile}
+            workspace={data.workspace}
             setup={data.setup}
             activeBean={activeBean}
             recentShot={recentShot}
@@ -137,9 +182,11 @@ function App() {
         )}
         {screen === "setup" && (
           <SetupScreen
+            profile={data.profile}
+            workspace={data.workspace}
             setup={data.setup}
             onBack={() => navigate("home")}
-            onSave={updateSetup}
+            onSave={updateProfileSetup}
           />
         )}
         {screen === "beans" && (
@@ -196,6 +243,8 @@ function App() {
 }
 
 function HomeScreen({
+  profile,
+  workspace,
   setup,
   activeBean,
   recentShot,
@@ -214,14 +263,14 @@ function HomeScreen({
           <span>COFFEE LAB</span>
         </div>
         <button className="avatar" onClick={onSetup} aria-label="Open setup">
-          TL
+          {initials(profile.fullName)}
         </button>
       </header>
 
       <section className="hero">
         <p className="eyebrow">YOUR MORNING RITUAL</p>
         <h1>
-          Good morning.
+          Good morning, {profile.fullName.split(/\s+/)[0]}.
           <br />
           <em>Ready to dial in?</em>
         </h1>
@@ -257,8 +306,12 @@ function HomeScreen({
           <h3>{setup.machine}</h3>
           <p>{setup.grinder}</p>
           <div className="setup-meta">
-            <span>{setup.basket}</span>
-            <span>{setup.waterTemperature}°C</span>
+            <span>{workspace.name}</span>
+            <span>
+              {setup.hasBuiltInGrinder
+                ? "Built-in grinder"
+                : "Separate grinder"}
+            </span>
           </div>
         </div>
         <Icon name="arrow" />
@@ -331,59 +384,113 @@ function HomeScreen({
   );
 }
 
-function SetupScreen({ setup, onBack, onSave }) {
-  const [form, setForm] = useState(setup);
-
+function OnboardingScreen({ onSave }) {
   return (
-    <FormScreen
-      eyebrow="YOUR WORKBENCH"
-      title="Coffee setup"
-      description="Your defaults travel with every new recipe."
-      onBack={onBack}
-      onSubmit={(event) => {
-        event.preventDefault();
-        onSave({ ...form, waterTemperature: Number(form.waterTemperature) });
-      }}
-      submitLabel="Save setup"
-    >
-      <div className="form-card">
+    <div className="screen onboarding-screen">
+      <div className="onboarding-brand">
+        <span className="brand-mark">
+          <span />
+        </span>
+        <span>COFFEE LAB</span>
+      </div>
+      <p className="eyebrow">WELCOME TO YOUR WORKBENCH</p>
+      <h1>Let’s set up your coffee space.</h1>
+      <p className="onboarding-intro">
+        A few details now will make every dial-in feel like yours.
+      </p>
+      <ProfileSetupForm onSave={onSave} submitLabel="Start dialing in" />
+    </div>
+  );
+}
+
+function SetupScreen({ profile, workspace, setup, onBack, onSave }) {
+  return (
+    <div className="screen form-screen">
+      <PageHeader
+        eyebrow="YOUR WORKBENCH"
+        title="Profile & setup"
+        description="Keep your name and everyday espresso setup up to date."
+        onBack={onBack}
+      />
+      <ProfileSetupForm
+        initialValues={{
+          fullName: profile.fullName,
+          machine: setup.machine,
+          workspaceName: workspace.name,
+          hasBuiltInGrinder: setup.hasBuiltInGrinder,
+          grinder: setup.hasBuiltInGrinder ? "" : setup.grinder,
+        }}
+        onSave={onSave}
+        submitLabel="Save changes"
+      />
+    </div>
+  );
+}
+
+function ProfileSetupForm({
+  initialValues = {
+    fullName: "",
+    machine: "",
+    workspaceName: "",
+    hasBuiltInGrinder: false,
+    grinder: "",
+  },
+  onSave,
+  submitLabel,
+}) {
+  const [form, setForm] = useState(initialValues);
+  const fields = (
+    <div className="form-card">
+      <Field
+        label="Full name"
+        value={form.fullName}
+        onChange={(fullName) => setForm({ ...form, fullName })}
+      />
+      <Field
+        label="Espresso machine"
+        value={form.machine}
+        onChange={(machine) => setForm({ ...form, machine })}
+      />
+      <Field
+        label="Workspace name"
+        value={form.workspaceName}
+        placeholder="Home setup"
+        required={false}
+        onChange={(workspaceName) => setForm({ ...form, workspaceName })}
+      />
+      <ToggleField
+        label="My machine has a built-in grinder"
+        checked={form.hasBuiltInGrinder}
+        onChange={(hasBuiltInGrinder) =>
+          setForm({ ...form, hasBuiltInGrinder })
+        }
+      />
+      {!form.hasBuiltInGrinder && (
         <Field
-          label="Espresso machine"
-          value={form.machine}
-          onChange={(machine) => setForm({ ...form, machine })}
-        />
-        <Field
-          label="Grinder"
+          label="Grinder name"
           value={form.grinder}
           onChange={(grinder) => setForm({ ...form, grinder })}
         />
-        <Field
-          label="Basket size / type"
-          value={form.basket}
-          onChange={(basket) => setForm({ ...form, basket })}
-        />
-        <SelectField
-          label="Portafilter"
-          value={form.portafilter}
-          options={["Bottomless", "Double spout", "Single spout"]}
-          onChange={(portafilter) => setForm({ ...form, portafilter })}
-        />
-        <Field
-          label="Default water temperature"
-          value={form.waterTemperature}
-          type="number"
-          suffix="°C"
-          onChange={(waterTemperature) =>
-            setForm({ ...form, waterTemperature })
-          }
-        />
-        <ToggleField
-          label="Use a puck screen"
-          checked={form.puckScreen}
-          onChange={(puckScreen) => setForm({ ...form, puckScreen })}
-        />
-      </div>
-    </FormScreen>
+      )}
+    </div>
+  );
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSave(form);
+      }}
+    >
+      {fields}
+      <button className="primary-button form-submit" type="submit">
+        <span className="button-icon">
+          <Icon name="check" />
+        </span>
+        <strong>{submitLabel}</strong>
+        <Icon name="arrow" />
+      </button>
+    </form>
   );
 }
 
@@ -990,16 +1097,19 @@ function Field({
   type = "text",
   suffix,
   step,
+  placeholder,
+  required = true,
 }) {
   return (
     <label className="field">
       <span>{label}</span>
       <div className="input-wrap">
         <input
-          required
+          required={required}
           type={type}
           step={step}
           value={value}
+          placeholder={placeholder}
           onChange={(event) => onChange(event.target.value)}
         />
         {suffix && <i>{suffix}</i>}

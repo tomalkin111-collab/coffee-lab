@@ -82,6 +82,36 @@ button {
   padding: 24px 20px 110px;
 }
 
+.onboarding-screen {
+  padding-top: 42px;
+}
+
+.onboarding-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 56px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+.onboarding-screen h1 {
+  max-width: 390px;
+  margin: 0;
+  font-size: clamp(36px, 10vw, 48px);
+  line-height: 1.04;
+  letter-spacing: -0.055em;
+}
+
+.onboarding-intro {
+  max-width: 340px;
+  margin: 16px 0 28px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
 .home-header {
   display: flex;
   align-items: center;
@@ -711,6 +741,11 @@ button {
   background: transparent;
   font-size: 14px;
   font-weight: 600;
+}
+
+.input-wrap input::placeholder {
+  color: #aaa097;
+  font-weight: 500;
 }
 
 .input-wrap input[type="date"] {
