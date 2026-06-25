@@ -703,6 +703,24 @@ button {
   background: rgba(251, 249, 244, 0.75);
 }
 
+.form-section-heading {
+  margin: 30px 3px 12px;
+}
+
+.form-section-heading h2 {
+  margin: 0;
+  font-size: 17px;
+  letter-spacing: -0.035em;
+}
+
+.form-section-heading p {
+  max-width: 340px;
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .field {
   display: block;
   width: 100%;

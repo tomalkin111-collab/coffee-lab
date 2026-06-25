@@ -15,6 +15,22 @@ const defaultData = {
 const roastLevels = ["Light", "Medium-light", "Medium", "Medium-dark", "Dark"];
 const tastes = ["Sour", "Bitter", "Watery", "Weak", "Balanced"];
 const flows = ["Too fast", "Normal", "Too slow"];
+const optionalSetupDefaults = {
+  basketSize: "",
+  defaultDose: "",
+  defaultWaterTemperature: "",
+  portafilterType: "",
+  puckScreen: "",
+  wdt: "",
+  distributionTool: "",
+  tamperType: "",
+};
+const tasteHabitDefaults = {
+  mainDrinkStyle: "",
+  experienceLevel: "",
+  preferredRoast: "",
+  preferredTasteDirection: "",
+};
 
 function ratio(dose, shotYield) {
   const value = Number(shotYield) / Number(dose);
@@ -67,13 +83,35 @@ function App() {
     const grinder = form.hasBuiltInGrinder
       ? "Built-in grinder"
       : form.grinder.trim();
+    const setupDetails = {
+      basketSize: form.basketSize,
+      defaultDose: form.defaultDose,
+      defaultWaterTemperature: form.defaultWaterTemperature,
+      portafilterType: form.portafilterType,
+      puckScreen: form.puckScreen,
+      wdt: form.wdt,
+      distributionTool: form.distributionTool,
+      tamperType: form.tamperType,
+    };
+    const tasteHabits = {
+      mainDrinkStyle: form.mainDrinkStyle,
+      experienceLevel: form.experienceLevel,
+      preferredRoast: form.preferredRoast,
+      preferredTasteDirection: form.preferredTasteDirection,
+    };
 
     setData((current) => ({
       ...current,
-      profile: { fullName },
+      profile: {
+        ...current.profile,
+        fullName,
+        tasteHabits,
+      },
       workspace: {
+        ...current.workspace,
         id: current.workspace?.id || "workspace-home",
         name: workspaceName,
+        setupDetails,
       },
       setup: {
         ...current.setup,
@@ -419,9 +457,14 @@ function SetupScreen({ profile, workspace, setup, onBack, onSave }) {
           workspaceName: workspace.name,
           hasBuiltInGrinder: setup.hasBuiltInGrinder,
           grinder: setup.hasBuiltInGrinder ? "" : setup.grinder,
+          ...optionalSetupDefaults,
+          ...workspace.setupDetails,
+          ...tasteHabitDefaults,
+          ...profile.tasteHabits,
         }}
         onSave={onSave}
         submitLabel="Save changes"
+        showOptional
       />
     </div>
   );
@@ -434,12 +477,15 @@ function ProfileSetupForm({
     workspaceName: "",
     hasBuiltInGrinder: false,
     grinder: "",
+    ...optionalSetupDefaults,
+    ...tasteHabitDefaults,
   },
   onSave,
   submitLabel,
+  showOptional = false,
 }) {
   const [form, setForm] = useState(initialValues);
-  const fields = (
+  const basicFields = (
     <div className="form-card">
       <Field
         label="Full name"
@@ -482,7 +528,143 @@ function ProfileSetupForm({
         onSave(form);
       }}
     >
-      {fields}
+      {basicFields}
+      {showOptional && (
+        <>
+          <FormSectionHeading
+            title="Optional setup details"
+            subtitle="Add more equipment details for better recommendations."
+          />
+          <div className="form-card">
+            <Field
+              label="Basket size"
+              value={form.basketSize}
+              type="number"
+              min="7"
+              max="25"
+              suffix="g"
+              required={false}
+              onChange={(basketSize) => setForm({ ...form, basketSize })}
+            />
+            <Field
+              label="Default dose"
+              value={form.defaultDose}
+              type="number"
+              min="5"
+              max="25"
+              suffix="g"
+              required={false}
+              onChange={(defaultDose) => setForm({ ...form, defaultDose })}
+            />
+            <Field
+              label="Default water temperature"
+              value={form.defaultWaterTemperature}
+              type="number"
+              min="85"
+              max="100"
+              suffix="°C"
+              required={false}
+              onChange={(defaultWaterTemperature) =>
+                setForm({ ...form, defaultWaterTemperature })
+              }
+            />
+            <SelectField
+              label="Portafilter type"
+              value={form.portafilterType}
+              options={[
+                "Single",
+                "Double",
+                "Bottomless",
+                "Pressurized",
+              ]}
+              optional
+              onChange={(portafilterType) =>
+                setForm({ ...form, portafilterType })
+              }
+            />
+            <SelectField
+              label="Puck screen"
+              value={form.puckScreen}
+              options={["Yes", "No"]}
+              optional
+              onChange={(puckScreen) => setForm({ ...form, puckScreen })}
+            />
+            <SelectField
+              label="WDT"
+              value={form.wdt}
+              options={["Yes", "No"]}
+              optional
+              onChange={(wdt) => setForm({ ...form, wdt })}
+            />
+            <SelectField
+              label="Distribution tool"
+              value={form.distributionTool}
+              options={["Yes", "No"]}
+              optional
+              onChange={(distributionTool) =>
+                setForm({ ...form, distributionTool })
+              }
+            />
+            <SelectField
+              label="Tamper type"
+              value={form.tamperType}
+              options={["Standard", "Calibrated", "Self-leveling"]}
+              optional
+              onChange={(tamperType) => setForm({ ...form, tamperType })}
+            />
+          </div>
+
+          <FormSectionHeading
+            title="Taste & habits"
+            subtitle="Help Coffee Lab understand how you like to drink coffee."
+          />
+          <div className="form-card">
+            <SelectField
+              label="Main drink style"
+              value={form.mainDrinkStyle}
+              options={["Espresso", "Americano", "Milk drinks", "All"]}
+              optional
+              onChange={(mainDrinkStyle) =>
+                setForm({ ...form, mainDrinkStyle })
+              }
+            />
+            <SelectField
+              label="Experience level"
+              value={form.experienceLevel}
+              options={["Beginner", "Intermediate", "Advanced"]}
+              optional
+              onChange={(experienceLevel) =>
+                setForm({ ...form, experienceLevel })
+              }
+            />
+            <SelectField
+              label="Preferred roast"
+              value={form.preferredRoast}
+              options={["Light", "Medium", "Dark", "No preference"]}
+              optional
+              onChange={(preferredRoast) =>
+                setForm({ ...form, preferredRoast })
+              }
+            />
+            <SelectField
+              label="Preferred taste direction"
+              value={form.preferredTasteDirection}
+              options={[
+                "Sweet",
+                "Balanced",
+                "Bright",
+                "Chocolatey",
+                "Fruity",
+                "Intense",
+              ]}
+              optional
+              onChange={(preferredTasteDirection) =>
+                setForm({ ...form, preferredTasteDirection })
+              }
+            />
+          </div>
+        </>
+      )}
       <button className="primary-button form-submit" type="submit">
         <span className="button-icon">
           <Icon name="check" />
@@ -1099,6 +1281,8 @@ function Field({
   step,
   placeholder,
   required = true,
+  min,
+  max,
 }) {
   return (
     <label className="field">
@@ -1108,6 +1292,8 @@ function Field({
           required={required}
           type={type}
           step={step}
+          min={min}
+          max={max}
           value={value}
           placeholder={placeholder}
           onChange={(event) => onChange(event.target.value)}
@@ -1118,18 +1304,28 @@ function Field({
   );
 }
 
-function SelectField({ label, value, options, onChange }) {
+function SelectField({ label, value, options, onChange, optional = false }) {
   return (
     <label className="field">
       <span>{label}</span>
       <div className="input-wrap select-wrap">
         <select value={value} onChange={(event) => onChange(event.target.value)}>
+          {optional && <option value="">Not set</option>}
           {options.map((option) => (
             <option key={option}>{option}</option>
           ))}
         </select>
       </div>
     </label>
+  );
+}
+
+function FormSectionHeading({ title, subtitle }) {
+  return (
+    <div className="form-section-heading">
+      <h2>{title}</h2>
+      <p>{subtitle}</p>
+    </div>
   );
 }
 
